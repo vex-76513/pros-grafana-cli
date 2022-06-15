@@ -1,6 +1,7 @@
 import datetime
 import json
 import re
+import sys
 
 from prosgrafana.gui_data.db.sqlite_wrapper import SQLiteWrapper
 
@@ -77,12 +78,12 @@ class ChartManager:
                         columns[chart] = "REAL"
 
                     # Initialize the database and open a connection
-                    self.db = SQLiteWrapper("guidata")
+                    self.db = SQLiteWrapper(sys.argv[1])
                     self.db.open()
 
                     # Create the table
                     self.db.begin()
-                    self.table = self.db.create_table("data", time="text", **columns)
+                    self.table = self.db.create_table(sys.argv[2], time="timestamp with time zone", **columns)
                     self.db.commit()
 
                     self.status = self.Status.RECEIVING_DATA
@@ -107,7 +108,7 @@ class ChartManager:
 
                     # Retrieve a datetime with the RFC3339 format
                     date = datetime.datetime.utcnow()
-                    date_str = date.isoformat("T") + "Z"
+                    date_str = date.isoformat(sep=' ') 
                     
                     self.table.insert_row(date_str, *data_values)
                     self.db.commit()

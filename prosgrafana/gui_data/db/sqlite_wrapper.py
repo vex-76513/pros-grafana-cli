@@ -1,5 +1,25 @@
-import sqlite3
+import os
+#import sqlite3
+import psycopg2
 
+
+import queue
+q = queue.Queue()
+def loop(conn):
+    cur = conn.cursor()
+    while True:
+        my = []
+
+        my.append(q.get())
+        l=0
+        while not q.empty() and l < 20:
+            my.append(q.get())
+            l+=1
+        cur.execute("begin")
+        cur.execute(' '.join(my)) # it already has a semicolon
+        cur.execute("commit")
+        #print(my)
+        #print('queue', q.qsize())
 
 class Table:
     def __init__(self, db, name, **columns):
@@ -12,9 +32,11 @@ class Table:
             column_string += "\"" + col_name + "\" " + col_type + ","
 
         column_string = column_string[:-1]
+        from threading import Thread
+        Thread(target = loop, args = (self.db.db_connection,), daemon=True).start()
 
         # Create the table
-        self.db.execute("""CREATE TABLE IF NOT EXISTS '%s' (%s)""" % (name, column_string))
+        self.db.execute("""CREATE TABLE IF NOT EXISTS %s (%s)""" % (name, column_string))
 
     def insert_row(self, *values):
         """
@@ -28,7 +50,8 @@ class Table:
 
         value_string = value_string[:-1]
 
-        self.db.execute("""INSERT INTO %s VALUES (%s);""" % (self.name, value_string))
+        q.put("""INSERT INTO %s VALUES (%s);""" % (self.name, value_string))
+
 
 
 class SQLiteWrapper:
@@ -38,7 +61,6 @@ class SQLiteWrapper:
     def __init__(self, db_name):
         self.db_name = db_name
         self.db_connection = None
-        self.cursor = None
 
     def open(self):
         """
@@ -47,15 +69,21 @@ class SQLiteWrapper:
         """
         try:
             # If the user hasn't appended the 'sqlite' extension when specifying the file, go ahead and add it
-            if not self.db_name.endswith(""".sqlite"""):
-                self.db_name += ".sqlite"
+            #if not self.db_name.endswith(""".sqlite"""):
+            #    self.db_name += ".sqlite"
 
-            self.db_connection = sqlite3.connect(self.db_name)
+            self.db_connection = psycopg2.connect(self.db_name)
+            self.cursor = self.db_connection.cursor()
+
 
             self.db_connection.isolation_level = None
-            self.cursor = self.db_connection.cursor()
-        except sqlite3.Error:
-            print("An error occurred while trying to connect to the SQLite Database.")
+
+        except psycopg2.Error as e:
+            print("An error occurred while trying to connect to the SQLite Database.", e)
+            raise e 
+
+    def loop(self):
+        pass
 
     def create_table(self, name, **columns):
         """
@@ -71,10 +99,14 @@ class SQLiteWrapper:
         :param sql_str: A SQL statement to be sent to the SQLite database
         """
 
-        self.cursor.execute(sql_str)
+
+        ret = self.cursor.execute(sql_str)
+        print("CREATE", ret)
 
     def begin(self):
         self.cursor.execute("begin")
+        pass
 
     def commit(self):
         self.cursor.execute("commit")
+        pass

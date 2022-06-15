@@ -11,7 +11,8 @@ from pros.serial.ports import DirectPort
 from pros.common.ui.log import PROSLogHandler, PROSLogFormatter
 
 @click.command()
-def gui():
+@click.argument('pg', nargs=-1)
+def gui(pg):
     """
     Transfers GUI data from the robot to the computer
     """
